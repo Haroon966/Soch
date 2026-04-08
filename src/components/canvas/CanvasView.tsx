@@ -23,10 +23,22 @@ const FlowInstance = () => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { sources } = useSourceStore();
   const { openNodeDetail } = useUiStore();
-  const { project, setNodes, getNodes } = useReactFlow();
+  const { project, setNodes, getNodes, fitView } = useReactFlow();
 
   const [pendingConnection, setPendingConnection] = useState<any>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [hasFitView, setHasFitView] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, canvasX: number, canvasY: number } | null>(null);
+
+  useEffect(() => {
+    if (nodes.length > 0 && !hasFitView) {
+      setTimeout(() => {
+        // Increase padding to add more margin around the boundary of the canvas
+        fitView({ padding: 0.4, duration: 800 });
+        setHasFitView(true);
+      }, 50);
+    }
+  }, [nodes.length, hasFitView, fitView]);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -79,6 +91,29 @@ const FlowInstance = () => {
     });
     addNode({ id: `IdeaNode-${Date.now()}`, type: 'IdeaNode', position, data: { label: 'New Idea' } });
   }, [project, addNode]);
+
+  const onPaneContextMenu = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      if (!reactFlowWrapper.current) return;
+      const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+      const position = project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      });
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        canvasX: position.x,
+        canvasY: position.y
+      });
+    },
+    [project]
+  );
+
+  const closeContextMenu = useCallback(() => {
+    if (contextMenu) setContextMenu(null);
+  }, [contextMenu]);
 
   const handleConnect = useCallback((connection: any) => {
     setPendingConnection(connection);
@@ -141,7 +176,8 @@ const FlowInstance = () => {
         onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
         onNodeClick={onNodeClick}
-        onPaneClick={(e) => { if (e.detail === 2) onPaneDoubleClick(e); }}
+        onPaneClick={(e) => { closeContextMenu(); if (e.detail === 2) onPaneDoubleClick(e); }}
+        onPaneContextMenu={onPaneContextMenu}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
@@ -162,6 +198,21 @@ const FlowInstance = () => {
           <button onClick={applyLayout} className="px-3 py-1 bg-bg-card hover:bg-border rounded text-sm transition-colors text-text-primary border border-border flex items-center gap-1.5 font-medium"><Settings size={14} /> Auto Layout</button>
         </Panel>
       </ReactFlow>
+
+      {contextMenu && (
+        <div 
+          className="fixed z-50 bg-bg-card border border-border shadow-2xl rounded-lg py-1.5 flex flex-col min-w-[160px]"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={closeContextMenu}
+          onMouseLeave={closeContextMenu}
+        >
+          <div className="px-3 py-1 text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">Add Node</div>
+          <button onClick={() => addNode({ id: `IdeaNode-${Date.now()}`, type: 'IdeaNode', position: { x: contextMenu.canvasX, y: contextMenu.canvasY }, data: { label: 'New Idea' }})} className="px-4 py-2 hover:bg-bg-elevated text-left text-sm text-text-primary flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> Idea</button>
+          <button onClick={() => addNode({ id: `QuestionNode-${Date.now()}`, type: 'QuestionNode', position: { x: contextMenu.canvasX, y: contextMenu.canvasY }, data: { label: 'New Question' }})} className="px-4 py-2 text-left hover:bg-bg-elevated text-sm text-text-primary flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Question</button>
+          <button onClick={() => addNode({ id: `ClaimNode-${Date.now()}`, type: 'ClaimNode', position: { x: contextMenu.canvasX, y: contextMenu.canvasY }, data: { label: 'New Claim' }})} className="px-4 py-2 text-left hover:bg-bg-elevated text-sm text-text-primary flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-border"></div> Claim</button>
+          <button onClick={() => addNode({ id: `GroupNode-${Date.now()}`, type: 'GroupNode', position: { x: contextMenu.canvasX, y: contextMenu.canvasY }, style: {width: 400, height: 400}, data: { label: 'New Group' }})} className="px-4 py-2 text-left hover:bg-bg-elevated text-sm text-text-primary flex items-center gap-2 border-t border-border mt-1 pt-2"><div className="w-2 h-2 rounded-sm border border-text-secondary border-dashed"></div> Group</button>
+        </div>
+      )}
 
       {pendingConnection && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setPendingConnection(null)}>

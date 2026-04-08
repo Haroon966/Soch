@@ -12,30 +12,55 @@ export const SourcePreviewModal = () => {
   
   const source = activeSourceId ? sources[activeSourceId] : null;
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [extractedText, setExtractedText] = useState<string>('Loading document preview...');
 
   useEffect(() => {
-    if (source && source.handle) {
-      source.handle.getFile().then((file: File) => {
+    if (!source || !source.handle) return;
+    
+    let currentWorker: Worker | null = null;
+    
+    source.handle.getFile().then((file: File) => {
+      if (source.type === 'image') {
         const url = URL.createObjectURL(file);
         setObjectUrl(url);
-      });
-    }
+      } else if (source.type === 'pdf') {
+        setExtractedText('Extracting PDF text (this might take a moment)...');
+        // Spawn our dynamic imported PDF web worker for code splitting & performance
+        currentWorker = new Worker(new URL('../../workers/pdfWorker.ts', import.meta.url), {
+          type: 'module'
+        });
+        currentWorker.onmessage = (e) => {
+          if (e.data.type === 'success') {
+            setExtractedText(e.data.text || 'No parseable text found in PDF.');
+          } else {
+            setExtractedText('Error extracting PDF: ' + e.data.error);
+          }
+        };
+        currentWorker.postMessage({ file });
+      } else if (source.type === 'document' || source.type === 'data') {
+        setExtractedText('Rich document rendering would occur here. Please convert to PDF to use text extraction.');
+      }
+    });
 
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (currentWorker) currentWorker.terminate();
+      setExtractedText('Loading document preview...');
     };
   }, [source]);
 
   const handleQuote = () => {
     // In a real app, grab window.getSelection().toString() inside the preview
-    // For now, just generate generic evidence node
+    // For now, extract text using standard window selection
+    const selection = window.getSelection()?.toString();
+    
     addNode({
       id: `Evidence-${Date.now()}`,
-      type: 'default',
+      type: 'default', // Ideally 'EvidenceNode' custom type
       position: { x: window.innerWidth / 2 - 100, y: window.innerHeight / 2 - 100 },
       data: {
         label: 'Extracted Evidence',
-        description: 'Selected quote from source...',
+        description: selection && selection.length > 0 ? selection : 'Selected quote from source...',
         sourceId: source?.id
       }
     });
@@ -81,15 +106,9 @@ export const SourcePreviewModal = () => {
             )}
             
             {(source.type === 'pdf' || source.type === 'document' || source.type === 'data') && (
-              <div className="bg-white text-black p-8 max-w-2xl w-full h-full min-h-full rounded shadow-lg prose prose-sm overflow-y-auto">
+              <div className="bg-white text-black p-8 max-w-2xl w-full h-full min-h-full rounded shadow-lg prose prose-sm overflow-y-auto whitespace-pre-wrap">
                 <h1 className="text-2xl font-bold mb-4">{source.name}</h1>
-                <p className="text-gray-500 italic pb-4 border-b border-gray-200">
-                   Note: Rich document rendering (PDF API, Mammoth) would occur here in production. Returning mock extract view for now.
-                </p>
-                <p className="mt-4">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-                  Select text here to quote as evidence...
-                </p>
+                <p className="mt-4">{extractedText}</p>
               </div>
             )}
             

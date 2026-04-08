@@ -15,6 +15,10 @@ interface EvidenceDB extends DBSchema {
     key: string;
     value: { projectId: string; nodes: any[]; edges: any[] };
   };
+  snapshots: {
+    key: string;
+    value: { id: string; projectId: string; timestamp: number; name: string; nodes: any[]; edges: any[] };
+  };
   settings: {
     key: string;
     value: any;
@@ -25,8 +29,8 @@ let dbPromise: Promise<IDBPDatabase<EvidenceDB>>;
 
 export const initDB = () => {
   if (!dbPromise) {
-    dbPromise = openDB<EvidenceDB>('EvidenceCanvasDB', 1, {
-      upgrade(db) {
+    dbPromise = openDB<EvidenceDB>('EvidenceCanvasDB', 2, {
+      upgrade(db, oldVersion, newVersion, transaction) {
         if (!db.objectStoreNames.contains('projects')) {
           db.createObjectStore('projects', { keyPath: 'id' });
         }
@@ -35,6 +39,10 @@ export const initDB = () => {
         }
         if (!db.objectStoreNames.contains('canvasState')) {
           db.createObjectStore('canvasState', { keyPath: 'projectId' });
+        }
+        if (!db.objectStoreNames.contains('snapshots')) {
+          const snapshotStore = db.createObjectStore('snapshots', { keyPath: 'id' });
+          snapshotStore.createIndex('projectId', 'projectId');
         }
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings');
@@ -78,4 +86,16 @@ export const saveCanvasState = async (projectId: string, nodes: any[], edges: an
 export const getCanvasState = async (projectId: string) => {
   const db = await initDB();
   return await db.get('canvasState', projectId);
+};
+
+export const saveSnapshot = async (id: string, projectId: string, name: string, nodes: any[], edges: any[]) => {
+  const db = await initDB();
+  await db.put('snapshots', { id, projectId, name, timestamp: Date.now(), nodes, edges });
+};
+
+export const getSnapshots = async (projectId: string) => {
+  const db = await initDB();
+  const tx = db.transaction('snapshots', 'readonly');
+  const index = tx.store.index('projectId');
+  return await index.getAll(projectId);
 };

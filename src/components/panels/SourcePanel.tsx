@@ -18,8 +18,9 @@ const getIcon = (type: string) => {
 };
 
 export const SourcePanel: React.FC = () => {
-  const { sources, addSource, setDirectoryHandle } = useSourceStore();
+  const { sources, addSource, syncSources, setDirectoryHandle } = useSourceStore();
   const fallbackInputRef = useRef<HTMLInputElement>(null);
+  const pollingCleanupRef = useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     const restoreHandle = async () => {
@@ -30,9 +31,11 @@ export const SourcePanel: React.FC = () => {
           if (permission === 'granted') {
             setDirectoryHandle(handle);
             const files = await scanDirectory(handle);
-            files.forEach(addSource);
-            startPolling(handle, (newSources) => {
-               newSources.forEach(addSource);
+            syncSources(files);
+            
+            if (pollingCleanupRef.current) pollingCleanupRef.current();
+            pollingCleanupRef.current = startPolling(handle, (newSources) => {
+               syncSources(newSources);
             });
           }
         }
@@ -41,7 +44,11 @@ export const SourcePanel: React.FC = () => {
       }
     };
     restoreHandle();
-  }, [setDirectoryHandle, addSource]);
+    
+    return () => {
+      if (pollingCleanupRef.current) pollingCleanupRef.current();
+    };
+  }, [setDirectoryHandle, syncSources]);
 
   const handleOpenFolder = async () => {
     try {
@@ -51,7 +58,7 @@ export const SourcePanel: React.FC = () => {
         setDirectoryHandle(dirHandle);
         await saveSetting('directoryHandle', dirHandle);
         const files = await scanDirectory(dirHandle);
-        files.forEach(addSource);
+        syncSources(files);
         
         // Auto-add to canvas
         const canvasNodes = useCanvasStore.getState().nodes;
@@ -73,8 +80,9 @@ export const SourcePanel: React.FC = () => {
           }
         });
 
-        startPolling(dirHandle, (newSources) => {
-           newSources.forEach(addSource);
+        if (pollingCleanupRef.current) pollingCleanupRef.current();
+        pollingCleanupRef.current = startPolling(dirHandle, (newSources) => {
+           syncSources(newSources);
         });
       } else {
         fallbackInputRef.current?.click();
