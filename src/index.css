@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Theme */
+    --bg-base: #f6f8fa;
+    --bg-card: #ffffff;
+    --bg-elevated: #f0f2f5;
+    --border: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #636c76;
+    --accent: #0969da;
+    --accent-hover: #0550ae;
+    --green: #2da44e;
+    --red: #cf222e;
+    --orange: #bf8700;
+    --yellow: #bf8700;
+  }
+
+  .dark {
+    /* Dark Theme */
+    --bg-base: #0d1117;
+    --bg-card: #161b22;
+    --bg-elevated: #21262d;
+    --border: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d29922;
+    --yellow: #e3b341;
+  }
+
+  body {
+    @apply bg-bg-base text-text-primary font-sans antialiased;
+  }
+}
+
+/* React Flow Theming */
+.react-flow {
+  background-color: var(--bg-base);
+}
+
+.react-flow__node {
+  /* Default node styles to inherit our theme */
+  @apply rounded-lg border border-border bg-bg-card text-text-primary shadow-sm;
+}
